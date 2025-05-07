@@ -11,6 +11,7 @@ function cropToSquare(dataUrl, size = 400) {
       canvas.width = canvas.height = size;
       const ctx = canvas.getContext('2d');
       const { width: w, height: h } = img;
+
       if (w > h) {
         const x0 = (w - h) / 2;
         ctx.drawImage(img, x0, 0, h, h, 0, 0, size, size);
@@ -18,6 +19,7 @@ function cropToSquare(dataUrl, size = 400) {
         const y0 = (h - w) / 2;
         ctx.drawImage(img, 0, y0, w, w, 0, 0, size, size);
       }
+
       res(canvas.toDataURL('image/jpeg'));
     };
     img.src = dataUrl;
@@ -25,37 +27,43 @@ function cropToSquare(dataUrl, size = 400) {
 }
 
 export default function App() {
-  // cropped, auto‐squared images for preview/export
-  const [images, setImages] = useState([]);
-  // originals straight from FileReader
-  const [originals, setOriginals] = useState([]);
-  // index of the thumbnail being manually re-cropped
-  const [editingIndex, setEditingIndex] = useState(null);
+  const MAX_IMAGES = 4;
 
-  // 1) Read files → store originals → auto-crop squares → store images
+  const [originals, setOriginals] = useState([]);
+  const [images, setImages] = useState([]);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [error, setError] = useState('');
+
+  // Read → limit → store originals → auto-crop → store squares
   const handleFiles = async (e) => {
     const files = Array.from(e.target.files);
 
-    // A) Read originals
+    if (files.length > MAX_IMAGES) {
+      setError(`Only the first ${MAX_IMAGES} photos will be used.`);
+    } else {
+      setError('');
+    }
+
+    const selected = files.slice(0, MAX_IMAGES);
+
     const dataUrls = await Promise.all(
-      files.map(f =>
+      selected.map(f =>
         new Promise(res => {
-          const reader = new FileReader();
-          reader.onload = () => res(reader.result);
-          reader.readAsDataURL(f);
+          const r = new FileReader();
+          r.onload = () => res(r.result);
+          r.readAsDataURL(f);
         })
       )
     );
     setOriginals(dataUrls);
 
-    // B) Auto-crop each to 400×400
     const squares = await Promise.all(
       dataUrls.map(url => cropToSquare(url, 400))
     );
     setImages(squares);
   };
 
-  // 2) When user completes a manual crop, update only the cropped array
+  // Replace one image after manual crop
   const applyCropped = (dataUrl) => {
     setImages(imgs =>
       imgs.map((src, i) => (i === editingIndex ? dataUrl : src))
@@ -63,12 +71,14 @@ export default function App() {
     setEditingIndex(null);
   };
 
-  // 3) Export strip as PNG (same as before)
+  // Generate PNG strip
   const generatePNG = async () => {
     if (!images.length) {
-      alert('Select at least one image');
+      setError('Please select at least one image.');
       return;
     }
+    setError('');
+
     const size = 400, border = 1, padding = 20, gap = 10;
     const width  = size + border * 2 + padding * 2;
     const height = padding * 2 + images.length * (size + border*2) + (images.length-1)*gap;
@@ -110,10 +120,18 @@ export default function App() {
           accept="image/*"
           onChange={handleFiles}
         />
-        <button onClick={generatePNG}>
+        <span>{images.length} / {MAX_IMAGES} photos</span>
+        <button onClick={generatePNG} disabled={!images.length}>
           Download Strip as PNG
         </button>
       </div>
+
+      {error && (
+        <div className="error-banner">
+          {error}
+          <button className="dismiss" onClick={() => setError('')}>×</button>
+        </div>
+      )}
 
       <div className="preview">
         {images.map((src, i) => (
@@ -126,7 +144,6 @@ export default function App() {
 
       {editingIndex !== null && (
         <CropModal
-          // feed the original image for manual re-crop:
           src={originals[editingIndex]}
           onCancel={() => setEditingIndex(null)}
           onComplete={applyCropped}
