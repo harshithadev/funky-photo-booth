@@ -11,3 +11,7 @@ npm install
 
 ### 3. Start the dev server
 npm run dev
+
+
+v1 version : 
+<img width="805" alt="image" src="https://github.com/user-attachments/assets/5ae918bf-1ad5-41ae-bc60-00b26f153a28" />
