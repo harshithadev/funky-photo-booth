@@ -27,83 +27,86 @@ function cropToSquare(dataUrl, size = 400) {
 
 export default function App() {
   const MAX_IMAGES = 4;
-
-  // raw originals & auto-cropped squares
-  const [originals, setOriginals] = useState([]);
-  const [images, setImages]     = useState([]);
+  const [originals, setOriginals] = useState([]);         // Raw captures/uploads
+  const [images, setImages]     = useState([]);         // Auto-cropped squares
   const [editingIndex, setEditingIndex] = useState(null);
   const [error, setError]       = useState('');
 
-  // camera vs upload
+  // Toggle between camera vs upload
   const [useCamera, setUseCamera] = useState(false);
   const webcamRef = useRef(null);
 
-  // -- 1) FILE UPLOAD --
-  const handleFiles = async e => {
+  // Handle file uploads
+  const handleFiles = async (e) => {
     const files = Array.from(e.target.files);
-    if (files.length > MAX_IMAGES) {
-      setError(`Only the first ${MAX_IMAGES} are used.`);
-    } else {
-      setError('');
-    }
+    if (files.length > MAX_IMAGES) setError(`Only first ${MAX_IMAGES} used.`);
+    else setError('');
+
     const selected = files.slice(0, MAX_IMAGES);
-    // read originals
     const dataUrls = await Promise.all(
       selected.map(f => new Promise(r => {
-        const rdr = new FileReader();
-        rdr.onload = () => r(rdr.result);
-        rdr.readAsDataURL(f);
+        const reader = new FileReader();
+        reader.onload = () => r(reader.result);
+        reader.readAsDataURL(f);
       }))
     );
     setOriginals(dataUrls);
-    // auto-crop
-    const squares = await Promise.all(dataUrls.map(url => cropToSquare(url, 400)));
+
+    const squares = await Promise.all(
+      dataUrls.map(url => cropToSquare(url, 400))
+    );
     setImages(squares);
   };
 
-  // -- 2) CAMERA CAPTURE --
+  // Capture using webcam
   const capturePhoto = async () => {
     if (images.length >= MAX_IMAGES) {
       setError(`Max ${MAX_IMAGES} photos reached.`);
       return;
     }
     setError('');
-    const screenshot = webcamRef.current.getScreenshot();         // JPEG Data-URL
+    const screenshot = webcamRef.current.getScreenshot();
     if (!screenshot) return;
-    // add to originals & images
-    const newOriginals = [...originals, screenshot];
-    setOriginals(newOriginals);
+
+    setOriginals(orig => [...orig, screenshot]);
     const square = await cropToSquare(screenshot, 400);
     setImages(imgs => [...imgs, square]);
   };
 
-  // -- 3) APPLY MANUAL CROP --
-  const applyCropped = dataUrl => {
-    setImages(imgs => imgs.map((src,i) => i===editingIndex ? dataUrl : src));
+  // Apply manual crop from CropModal
+  const applyCropped = (dataUrl) => {
+    setImages(imgs => imgs.map((src, i) => i === editingIndex ? dataUrl : src));
     setEditingIndex(null);
   };
 
-  // -- 4) GENERATE PNG STRIP --
+  // Generate and download final PNG strip
   const generatePNG = async () => {
-    if (!images.length) { setError('Select at least one photo.'); return; }
+    if (!images.length) {
+      setError('Select at least one photo.');
+      return;
+    }
     setError('');
-    const size=400, border=1, padding=20, gap=10;
-    const w = size + border*2 + padding*2;
-    const h = padding*2 + images.length*(size+border*2) + (images.length-1)*gap;
-    const canvas = document.createElement('canvas');
-    canvas.width = w; canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,w,h);
 
-    for (let i=0; i<images.length; i++){
+    const size = 400, border = 1, padding = 20, gap = 10;
+    const width  = size + border*2 + padding*2;
+    const height = padding*2 + images.length*(size+border*2) + (images.length-1)*gap;
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, width, height);
+
+    for (let i = 0; i < images.length; i++) {
       const imgEl = new Image();
       await new Promise(r => { imgEl.onload = r; imgEl.src = images[i]; });
+
       const x = padding + border;
       const y = padding + i*((size+border*2)+gap) + border;
-      ctx.strokeStyle='#000'; ctx.lineWidth=border;
+      ctx.strokeStyle = '#000'; ctx.lineWidth = border;
       ctx.strokeRect(x-border, y-border, size+border*2, size+border*2);
       ctx.drawImage(imgEl, x, y, size, size);
     }
+
     canvas.toBlob(blob => {
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
@@ -117,12 +120,12 @@ export default function App() {
       <h1>📸 Photo Booth</h1>
 
       <div className="controls">
-        <button
-          className={useCamera? 'active': ''}
+        <button 
+          className={useCamera ? 'active' : ''}
           onClick={() => setUseCamera(true)}
         >Camera</button>
-        <button
-          className={!useCamera? 'active': ''}
+        <button 
+          className={!useCamera ? 'active' : ''}
           onClick={() => setUseCamera(false)}
         >Upload</button>
 
@@ -134,17 +137,17 @@ export default function App() {
               screenshotFormat="image/jpeg"
               videoConstraints={{ facingMode: 'user' }}
             />
-            <button onClick={capturePhoto} disabled={images.length>=MAX_IMAGES}>
+            <button onClick={capturePhoto} disabled={images.length >= MAX_IMAGES}>
               Capture
             </button>
           </div>
         ) : (
           <input
             type="file"
-            multiple
             accept="image/*"
+            multiple
             onChange={handleFiles}
-            disabled={images.length>=MAX_IMAGES}
+            disabled={images.length >= MAX_IMAGES}
           />
         )}
 
@@ -157,23 +160,23 @@ export default function App() {
       {error && (
         <div className="error-banner">
           {error}
-          <button className="dismiss" onClick={()=>setError('')}>×</button>
+          <button className="dismiss" onClick={() => setError('')}>×</button>
         </div>
       )}
 
       <div className="preview">
-        {images.map((src,i) => (
+        {images.map((src, i) => (
           <div key={i} className="thumb-wrapper">
             <img src={src} alt={`Preview ${i}`} />
-            <button onClick={()=>setEditingIndex(i)}>Crop</button>
+            <button onClick={() => setEditingIndex(i)}>Crop</button>
           </div>
         ))}
       </div>
 
-      {editingIndex!==null && (
+      {editingIndex !== null && (
         <CropModal
           src={originals[editingIndex]}
-          onCancel={()=>setEditingIndex(null)}
+          onCancel={() => setEditingIndex(null)}
           onComplete={applyCropped}
         />
       )}
