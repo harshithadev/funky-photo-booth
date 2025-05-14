@@ -184,3 +184,29 @@
   margin-top: 1rem;
   display: flex; gap: 1rem;
 }
+
+/* full-height split layout */
+.split-container {
+  display: flex;
+  height: 100vh;           /* fills the viewport */
+  overflow: hidden;
+}
+
+/* left & right panels each take 50% */
+.left-panel,
+.right-panel {
+  flex: 1;
+  padding: 1.5rem;
+  overflow-y: auto;        /* scroll if content grows */
+}
+
+/* subtle divider between them */
+.left-panel {
+  border-right: 1px solid #ddd;
+}
+
+/* optional: a bit of background on left side */
+.left-panel {
+  background: #fafafa;
+}
+
