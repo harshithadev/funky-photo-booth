@@ -4,70 +4,82 @@ import Webcam from 'react-webcam';
 import CropModal from './CropModal';
 import './styles.css';
 
-// available themes
-const THEMES = ['Classic', 'Minimal', 'Retro'];
+// Simple Accordion Panel component
+function Panel({ number, title, isOpen, onToggle, disabled, children }) {
+  return (
+    <div className={`panel ${disabled ? 'panel-disabled' : ''}`}>
+      <button
+        className="panel-header"
+        onClick={() => !disabled && onToggle(number)}
+      >
+        <span className="panel-title">{number}. {title}</span>
+        <span className="panel-chevron">{isOpen ? '▼' : '▶'}</span>
+      </button>
+      {isOpen && <div className="panel-content">{children}</div>}
+    </div>
+  );
+}
+
+// Helper to center-crop any Data-URL image into a size×size square
+function cropToSquare(dataUrl, size = 400) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const { width: w, height: h } = img;
+      if (w > h) {
+        const x0 = (w - h) / 2;
+        ctx.drawImage(img, x0, 0, h, h, 0, 0, size, size);
+      } else {
+        const y0 = (h - w) / 2;
+        ctx.drawImage(img, 0, y0, w, w, 0, 0, size, size);
+      }
+      res(canvas.toDataURL('image/jpeg'));
+    };
+    img.src = dataUrl;
+  });
+}
 
 export default function App() {
-  // === CONFIG STATE ===
-  const [configDone, setConfigDone] = useState(false);
-  const [config, setConfig] = useState({
-    count: 4,
-    mode: 'upload',     // 'upload' or 'camera'
-    theme: 'Minimal',   // one of THEMES
-  });
+  const MAX_PHOTOS = 4;
+  const THEMES = ['Classic','Minimal','Retro'];
 
-  // === PHOTO STATE ===
+  // Wizard state
+  const [openPanel, setOpenPanel] = useState(1);
+  const [config, setConfig] = useState({ count: 4, mode: 'upload', theme: THEMES[1] });
+  const [configDone, setConfigDone] = useState(false);
+
+  // Photo state
   const [originals, setOriginals] = useState([]);
   const [images, setImages]     = useState([]);
   const [editingIndex, setEditingIndex] = useState(null);
-  const [error, setError]       = useState('');
+  const webcamRef = useRef();
 
-  // webcam ref
-  const webcamRef = useRef(null);
+  const [error, setError] = useState('');
 
-  // center-crop helper (unchanged)
-  function cropToSquare(dataUrl, size = 400) {
-    return new Promise(res => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        const { width: w, height: h } = img;
-        if (w > h) {
-          const x0 = (w - h) / 2;
-          ctx.drawImage(img, x0, 0, h, h, 0, 0, size, size);
-        } else {
-          const y0 = (h - w) / 2;
-          ctx.drawImage(img, 0, y0, w, w, 0, 0, size, size);
-        }
-        res(canvas.toDataURL('image/jpeg'));
-      };
-      img.src = dataUrl;
-    });
-  }
+  // Panel toggle: only one open at once
+  const handleToggle = (num) => setOpenPanel(num);
 
-  // === STEP 1: CONFIGURE ===
+  // --- Panel 1: Configuration ---
   const handleConfigSubmit = () => {
     setError('');
-    // flush any old photos
     setOriginals([]);
     setImages([]);
     setEditingIndex(null);
     setConfigDone(true);
+    setOpenPanel(2);
   };
 
-  // === STEP 2: UPLOAD HANDLER ===
-  const handleFiles = async (e) => {
-    const MAX = config.count;
-    const files = Array.from(e.target.files).slice(0, MAX);
-    if (e.target.files.length > MAX) {
-      setError(`Only the first ${MAX} photos will be used.`);
+  // --- Panel 2: Photo Capture ---
+  const handleFiles = async e => {
+    const files = Array.from(e.target.files).slice(0, config.count);
+    if (e.target.files.length > config.count) {
+      setError(`Only first ${config.count} used.`);
     } else {
       setError('');
     }
-
-    // read originals
     const dataUrls = await Promise.all(
       files.map(f => new Promise(r => {
         const rdr = new FileReader();
@@ -76,199 +88,162 @@ export default function App() {
       }))
     );
     setOriginals(dataUrls);
-
-    // auto-crop
-    const squares = await Promise.all(
-      dataUrls.map(url => cropToSquare(url, 400))
-    );
+    const squares = await Promise.all(dataUrls.map(url => cropToSquare(url)));
     setImages(squares);
+    setOpenPanel(3);
   };
 
-  // === STEP 2b: CAMERA CAPTURE ===
   const capturePhoto = async () => {
-    const MAX = config.count;
-    if (images.length >= MAX) {
-      setError(`Max ${MAX} photos reached.`);
+    if (images.length >= config.count) {
+      setError(`Max ${config.count} reached.`);
       return;
     }
     setError('');
     const shot = webcamRef.current.getScreenshot();
     if (!shot) return;
-    setOriginals(orig => [...orig, shot]);
-    const square = await cropToSquare(shot, 400);
-    setImages(imgs => [...imgs, square]);
+    const newOrig = [...originals, shot];
+    setOriginals(newOrig);
+    const sq = await cropToSquare(shot);
+    setImages([...images, sq]);
+    setOpenPanel(3);
   };
 
-  // === STEP 3: MANUAL CROP ===
-  const applyCropped = (url) => {
-    setImages(imgs => imgs.map((src,i) => i === editingIndex ? url : src));
+  // --- Panel 3: Photostrip ---
+  const applyCropped = url => {
+    setImages(images.map((img,i) => i===editingIndex?url:img));
     setEditingIndex(null);
   };
 
-  // === STEP 4: GENERATE PNG ===
   const generatePNG = async () => {
     if (!images.length) {
-      setError('Select at least one photo.');
+      setError('Add at least one photo.');
       return;
     }
     setError('');
-
-    const size = 400, border = 1, padding = 20, gap = 10;
-    const width  = size + border*2 + padding*2;
-    const height = padding*2 + images.length*(size+border*2) + (images.length-1)*gap;
-
+    const size=400, border=1, padding=20, gap=10;
+    const w = size + border*2 + padding*2;
+    const h = padding*2 + images.length*(size+border*2) + (images.length-1)*gap;
     const canvas = document.createElement('canvas');
-    canvas.width = width; canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, width, height);
+    canvas.width=w; canvas.height=h;
+    const ctx=canvas.getContext('2d');
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h);
 
-    for (let i = 0; i < images.length; i++) {
-      const imgEl = new Image();
-      await new Promise(r => { imgEl.onload = r; imgEl.src = images[i]; });
-      const x = padding + border;
-      const y = padding + i*((size+border*2)+gap) + border;
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = border;
-      ctx.strokeRect(x-border, y-border, size+border*2, size+border*2);
-      ctx.drawImage(imgEl, x, y, size, size);
+    for (let i=0;i<images.length;i++){
+      const imgEl=new Image();
+      await new Promise(r=>{imgEl.onload=r; imgEl.src=images[i];});
+      const x=padding+border;
+      const y=padding + i*((size+border*2)+gap) + border;
+      ctx.strokeStyle='#000'; ctx.lineWidth=border;
+      ctx.strokeRect(x-border,y-border,size+border*2,size+border*2);
+      ctx.drawImage(imgEl,x,y,size,size);
     }
 
-    canvas.toBlob(blob => {
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'photobooth-strip.png';
+    canvas.toBlob(blob=>{
+      const link=document.createElement('a');
+      link.href=URL.createObjectURL(blob);
+      link.download='photostrip.png';
       link.click();
-    }, 'image/png');
+    },'image/png');
   };
 
   return (
-    <div className="split-container">
-      {/* LEFT PANEL: CONFIG or CONTROLS */}
-      <div className="left-panel">
-        {!configDone ? (
+    <div className="container">
+      <Panel
+        number={1}
+        title="Configuration"
+        isOpen={openPanel===1}
+        onToggle={handleToggle}
+      >
+        <label>
+          Number of Photos (1–4):
+          <input
+            type="number" min={1} max={MAX_PHOTOS}
+            value={config.count}
+            onChange={e=>setConfig({...config,count:+e.target.value})}
+          />
+        </label>
+
+        <label>
+          Mode:
+          <select
+            value={config.mode}
+            onChange={e=>setConfig({...config,mode:e.target.value})}
+          >
+            <option value="upload">Upload</option>
+            <option value="camera">Camera</option>
+          </select>
+        </label>
+
+        <label>
+          Theme:
+          <select
+            value={config.theme}
+            onChange={e=>setConfig({...config,theme:e.target.value})}
+          >
+            {THEMES.map(t=>(
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </label>
+
+        <button onClick={handleConfigSubmit}>Proceed</button>
+      </Panel>
+
+      <Panel
+        number={2}
+        title="Photo Capture"
+        isOpen={openPanel===2}
+        onToggle={handleToggle}
+        disabled={!configDone}
+      >
+        {config.mode === 'camera' ? (
           <>
-            <h2>Configure Your Strip</h2>
-
-            <label>
-              Number of photos (1–4):
-              <input
-                type="number"
-                min={1}
-                max={4}
-                value={config.count}
-                onChange={e =>
-                  setConfig({...config, count: Number(e.target.value)})
-                }
-              />
-            </label>
-
-            <label>
-              Mode:
-              <select
-                value={config.mode}
-                onChange={e =>
-                  setConfig({...config, mode: e.target.value})
-                }
-              >
-                <option value="upload">Upload</option>
-                <option value="camera">Camera</option>
-              </select>
-            </label>
-
-            <label>
-              Theme:
-              <select
-                value={config.theme}
-                onChange={e =>
-                  setConfig({...config, theme: e.target.value})
-                }
-              >
-                {THEMES.map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </label>
-
-            <button onClick={handleConfigSubmit}>Proceed</button>
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              videoConstraints={{facingMode:'user'}}
+            />
+            <button onClick={capturePhoto}>Capture</button>
           </>
         ) : (
-          <>
-            <h2>📸 {config.theme} Mode</h2>
-
-            {/* Toggle between camera/upload */}
-            <div className="controls">
-              {config.mode === 'camera' ? (
-                <div className="camera">
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    videoConstraints={{ facingMode: 'user' }}
-                  />
-                  <button
-                    onClick={capturePhoto}
-                    disabled={images.length >= config.count}
-                  >
-                    Capture
-                  </button>
-                </div>
-              ) : (
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleFiles}
-                  disabled={images.length >= config.count}
-                />
-              )}
-
-              <span>
-                {images.length} / {config.count}
-              </span>
-
-              <button
-                onClick={generatePNG}
-                disabled={!images.length}
-              >
-                Download PNG
-              </button>
-            </div>
-
-            {error && (
-              <div className="error-banner">
-                {error}
-                <button
-                  className="dismiss"
-                  onClick={() => setError('')}
-                >
-                  ×
-                </button>
-              </div>
-            )}
-          </>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleFiles}
+          />
         )}
-      </div>
+        <p>Captured: {images.length} / {config.count}</p>
+      </Panel>
 
-      {/* RIGHT PANEL: Preview + Crop */}
-      <div className="right-panel">
+      <Panel
+        number={3}
+        title="Photostrip"
+        isOpen={openPanel===3}
+        onToggle={handleToggle}
+        disabled={images.length < 1}
+      >
         <div className="preview">
-          {images.map((src, i) => (
+          {images.map((src,i)=>(
             <div key={i} className="thumb-wrapper">
-              <img src={src} alt={`Preview ${i}`} />
-              <button onClick={() => setEditingIndex(i)}>Crop</button>
+              <img src={src} alt="" />
+              <button onClick={()=>setEditingIndex(i)}>Crop</button>
             </div>
           ))}
         </div>
+        <button onClick={generatePNG}>Download Strip</button>
+      </Panel>
 
-        {editingIndex !== null && (
-          <CropModal
-            src={originals[editingIndex]}
-            onCancel={() => setEditingIndex(null)}
-            onComplete={applyCropped}
-          />
-        )}
-      </div>
+      {error && <div className="error-banner">{error}</div>}
+
+      {editingIndex !== null && (
+        <CropModal
+          src={originals[editingIndex]}
+          onCancel={()=>setEditingIndex(null)}
+          onComplete={applyCropped}
+        />
+      )}
     </div>
   );
 }
