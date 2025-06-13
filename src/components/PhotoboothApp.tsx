@@ -52,7 +52,7 @@ const PhotoboothApp = () => {
         <div className="px-8 py-2">
           <div className="flex justify-between items-center">
             <h1 className="text-xl font-bold text-slate-800 font-playfair">
-              📸 Photobooth Studio
+              Funky Photobooth Studio
             </h1>
             <p className="text-slate-600 text-sm font-dancing">Create beautiful photo strips in seconds</p>
           </div>
