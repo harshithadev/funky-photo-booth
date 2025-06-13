@@ -1,0 +1,203 @@
+import React, { useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { PhotoboothConfig, CapturedPhoto } from './PhotoboothApp';
+import { Download, ArrowLeft, RotateCcw } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+
+interface PhotostripPanelProps {
+  isActive: boolean;
+  config: PhotoboothConfig;
+  photos: CapturedPhoto[];
+  onStartOver: () => void;
+  onBack: () => void;
+  onReopen?: () => void;
+}
+
+const PhotostripPanel = ({ isActive, config, photos, onStartOver, onBack, onReopen }: PhotostripPanelProps) => {
+  const stripRef = useRef<HTMLDivElement>(null);
+
+  const downloadStrip = async () => {
+    if (!stripRef.current) return;
+
+    try {
+      // Create a new canvas to render the photostrip
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Set canvas dimensions for a photostrip
+      const stripWidth = 400;
+      const photoHeight = 300;
+      const spacing = 20;
+      const headerHeight = 80;
+      canvas.width = stripWidth;
+      canvas.height = headerHeight + (photoHeight + spacing) * config.photoCount + spacing;
+
+      // Set background based on theme
+      if (config.theme === 'retro') {
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, '#fef7cd');
+        gradient.addColorStop(1, '#fbbf24');
+        ctx.fillStyle = gradient;
+      } else {
+        ctx.fillStyle = '#ffffff';
+      }
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Add header
+      ctx.fillStyle = config.theme === 'retro' ? '#92400e' : '#000000';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('PHOTOBOOTH', stripWidth / 2, 40);
+      
+      ctx.font = '14px Arial';
+      ctx.fillText(new Date().toLocaleDateString(), stripWidth / 2, 65);
+
+      // Load and draw photos
+      const loadImage = (src: string): Promise<HTMLImageElement> => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = src;
+        });
+      };
+
+      for (let i = 0; i < photos.length; i++) {
+        try {
+          const img = await loadImage(photos[i].url);
+          const y = headerHeight + spacing + (photoHeight + spacing) * i;
+          const photoWidth = stripWidth - spacing * 2;
+          
+          // Draw photo with border
+          if (config.theme === 'retro') {
+            ctx.fillStyle = '#92400e';
+            ctx.fillRect(spacing - 5, y - 5, photoWidth + 10, photoHeight + 10);
+          }
+          
+          ctx.drawImage(img, spacing, y, photoWidth, photoHeight);
+        } catch (error) {
+          console.error('Error loading image:', error);
+        }
+      }
+
+      // Convert canvas to blob and download
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `photostrip-${config.theme}-${Date.now()}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
+          toast({
+            title: "Download started!",
+            description: "Your photostrip is being downloaded.",
+          });
+        }
+      }, 'image/png');
+    } catch (error) {
+      toast({
+        title: "Download failed",
+        description: "There was an error creating your photostrip.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  if (!isActive) {
+    return (
+      <div 
+        className="h-full bg-gradient-to-br from-slate-100 to-slate-200 cursor-pointer group hover:from-slate-200 hover:to-slate-300 transition-all duration-300 flex items-center justify-center" 
+        onClick={onReopen}
+      >
+        <div className="lg:block hidden w-2 h-32 bg-gradient-to-b from-slate-400 to-slate-600 rounded-full group-hover:w-3 group-hover:h-40 transition-all duration-300"></div>
+        <div className="lg:hidden block text-slate-600 font-medium">Photostrip</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full p-8 overflow-y-auto">
+      <div className="max-w-lg mx-auto">
+        <div className="flex items-center gap-4 mb-10">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-r from-slate-600 to-slate-800 flex items-center justify-center shadow-lg">
+            <span className="text-white font-semibold">3</span>
+          </div>
+          <div>
+            <h2 className="text-2xl font-semibold text-slate-800">Your Photostrip</h2>
+            <p className="text-slate-600">Preview and download your creation</p>
+          </div>
+        </div>
+
+        <div className="space-y-10">
+          {/* Photostrip Preview */}
+          <div className="flex justify-center">
+            <div 
+              ref={stripRef}
+              className={`w-80 rounded-2xl shadow-xl overflow-hidden border ${
+                config.theme === 'retro' 
+                  ? 'bg-gradient-to-b from-amber-50 to-orange-100 border-amber-200' 
+                  : 'bg-white border-slate-200'
+              }`}
+            >
+              {/* Header */}
+              <div className={`text-center py-8 ${
+                config.theme === 'retro' ? 'text-amber-800' : 'text-slate-800'
+              }`}>
+                <h3 className="text-xl font-semibold">PHOTOBOOTH</h3>
+                <p className="text-sm mt-2">{new Date().toLocaleDateString()}</p>
+              </div>
+              
+              {/* Photos */}
+              <div className="px-8 pb-8 space-y-6">
+                {photos.map((photo, index) => (
+                  <div 
+                    key={photo.id} 
+                    className={`relative ${
+                      config.theme === 'retro' 
+                        ? 'border-2 border-amber-300 shadow-lg' 
+                        : 'border border-slate-300 shadow-md'
+                    } rounded-lg overflow-hidden`}
+                  >
+                    <img 
+                      src={photo.url} 
+                      alt={`Photo ${index + 1}`}
+                      className="w-full h-48 object-cover"
+                    />
+                    {config.theme === 'retro' && (
+                      <div className="absolute bottom-3 right-3 bg-amber-800 text-amber-100 px-3 py-1 rounded text-sm font-semibold">
+                        #{index + 1}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-4">
+            <Button variant="outline" onClick={onBack} className="flex-1 border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-4">
+              <ArrowLeft className="w-5 h-5 mr-3" />
+              Back
+            </Button>
+            <Button onClick={downloadStrip} className="flex-1 bg-gradient-to-r from-slate-600 to-slate-800 hover:from-slate-700 hover:to-slate-900 text-white font-medium py-4 shadow-lg hover:shadow-xl transition-all duration-200" size="lg">
+              <Download className="w-5 h-5 mr-3" />
+              Download
+            </Button>
+            <Button variant="outline" onClick={onStartOver} className="flex-1 border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-4">
+              <RotateCcw className="w-5 h-5 mr-3" />
+              Start Over
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PhotostripPanel;
