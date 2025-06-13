@@ -296,3 +296,87 @@
   border-radius: 4px;
   margin-bottom: 1rem;
 }
+
+.container {
+  max-width: 720px;
+  margin: 2rem auto;
+  font-family: sans-serif;
+}
+
+/* Collapsible base */
+.collapsible {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+.collapsible.disabled .collapsible-header {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Header */
+.collapsible-header {
+  background: #f7f7f7;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.collapsible-header:hover {
+  background: #eee;
+}
+
+/* Arrow */
+.arrow {
+  transition: transform 0.3s ease;
+}
+.arrow.open {
+  transform: rotate(90deg);
+}
+
+/* Body */
+.collapsible-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease;
+  padding: 0 1rem;
+}
+.collapsible-body.open {
+  max-height: 1000px; /* large enough to show content */
+  padding: 1rem;
+}
+
+/* Preview thumbnails */
+.preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.thumb-wrapper {
+  position: relative;
+}
+.thumb-wrapper img {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+.thumb-wrapper button {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  font-size: 0.75rem;
+}
+
+/* Error banner */
+.error-banner {
+  background: #fee;
+  color: #900;
+  padding: 0.75rem 1rem;
+  border: 1px solid #f00;
+  border-radius: 4px;
+  margin-top: 1rem;
+}

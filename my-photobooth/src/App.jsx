@@ -1,26 +1,28 @@
 // src/App.jsx
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import Webcam from 'react-webcam';
 import CropModal from './CropModal';
 import './styles.css';
 
-// Simple Accordion Panel component
-function Panel({ number, title, isOpen, onToggle, disabled, children }) {
+const THEMES = ['Classic', 'Minimal', 'Retro'];
+const MAX_PHOTOS = 4;
+
+// A collapsible panel with smooth open/close
+function Collapsible({ id, title, isOpen, onToggle, disabled, children }) {
   return (
-    <div className={`panel ${disabled ? 'panel-disabled' : ''}`}>
-      <button
-        className="panel-header"
-        onClick={() => !disabled && onToggle(number)}
-      >
-        <span className="panel-title">{number}. {title}</span>
-        <span className="panel-chevron">{isOpen ? '▼' : '▶'}</span>
-      </button>
-      {isOpen && <div className="panel-content">{children}</div>}
+    <div className={`collapsible ${disabled ? 'disabled' : ''}`}>
+      <div className="collapsible-header" onClick={() => !disabled && onToggle(id)}>
+        <span>{title}</span>
+        <span className={`arrow ${isOpen ? 'open' : ''}`}>▶</span>
+      </div>
+      <div className={`collapsible-body ${isOpen ? 'open' : ''}`}>
+        {children}
+      </div>
     </div>
   );
 }
 
-// Helper to center-crop any Data-URL image into a size×size square
+// Center-crop helper (unchanged)
 function cropToSquare(dataUrl, size = 400) {
   return new Promise(res => {
     const img = new Image();
@@ -30,11 +32,9 @@ function cropToSquare(dataUrl, size = 400) {
       const ctx = canvas.getContext('2d');
       const { width: w, height: h } = img;
       if (w > h) {
-        const x0 = (w - h) / 2;
-        ctx.drawImage(img, x0, 0, h, h, 0, 0, size, size);
+        ctx.drawImage(img, (w-h)/2, 0, h, h, 0, 0, size, size);
       } else {
-        const y0 = (h - w) / 2;
-        ctx.drawImage(img, 0, y0, w, w, 0, 0, size, size);
+        ctx.drawImage(img, 0, (h-w)/2, w, w, 0, 0, size, size);
       }
       res(canvas.toDataURL('image/jpeg'));
     };
@@ -43,26 +43,23 @@ function cropToSquare(dataUrl, size = 400) {
 }
 
 export default function App() {
-  const MAX_PHOTOS = 4;
-  const THEMES = ['Classic','Minimal','Retro'];
-
-  // Wizard state
+  // Which panel is open
   const [openPanel, setOpenPanel] = useState(1);
+
+  // Configuration
   const [config, setConfig] = useState({ count: 4, mode: 'upload', theme: THEMES[1] });
   const [configDone, setConfigDone] = useState(false);
 
-  // Photo state
+  // Photos
   const [originals, setOriginals] = useState([]);
   const [images, setImages]     = useState([]);
   const [editingIndex, setEditingIndex] = useState(null);
-  const webcamRef = useRef();
+  const webcamRef = useRef(null);
 
+  // Error banner
   const [error, setError] = useState('');
 
-  // Panel toggle: only one open at once
-  const handleToggle = (num) => setOpenPanel(num);
-
-  // --- Panel 1: Configuration ---
+  // Step 1: Finish config
   const handleConfigSubmit = () => {
     setError('');
     setOriginals([]);
@@ -72,16 +69,16 @@ export default function App() {
     setOpenPanel(2);
   };
 
-  // --- Panel 2: Photo Capture ---
+  // Step 2a: Upload photos
   const handleFiles = async e => {
-    const files = Array.from(e.target.files).slice(0, config.count);
+    const selected = Array.from(e.target.files).slice(0, config.count);
     if (e.target.files.length > config.count) {
-      setError(`Only first ${config.count} used.`);
+      setError(`Only the first ${config.count} photos will be used.`);
     } else {
       setError('');
     }
     const dataUrls = await Promise.all(
-      files.map(f => new Promise(r => {
+      selected.map(f => new Promise(r => {
         const rdr = new FileReader();
         rdr.onload = () => r(rdr.result);
         rdr.readAsDataURL(f);
@@ -93,6 +90,7 @@ export default function App() {
     setOpenPanel(3);
   };
 
+  // Step 2b: Capture from webcam
   const capturePhoto = async () => {
     if (images.length >= config.count) {
       setError(`Max ${config.count} reached.`);
@@ -101,99 +99,98 @@ export default function App() {
     setError('');
     const shot = webcamRef.current.getScreenshot();
     if (!shot) return;
-    const newOrig = [...originals, shot];
-    setOriginals(newOrig);
+    setOriginals(orig => [...orig, shot]);
     const sq = await cropToSquare(shot);
-    setImages([...images, sq]);
+    setImages(imgs => [...imgs, sq]);
     setOpenPanel(3);
   };
 
-  // --- Panel 3: Photostrip ---
+  // Step 3: Manual crop
   const applyCropped = url => {
-    setImages(images.map((img,i) => i===editingIndex?url:img));
+    setImages(imgs => imgs.map((img, i) => i === editingIndex ? url : img));
     setEditingIndex(null);
   };
 
+  // Step 4: Generate & download PNG
   const generatePNG = async () => {
     if (!images.length) {
       setError('Add at least one photo.');
       return;
     }
     setError('');
-    const size=400, border=1, padding=20, gap=10;
-    const w = size + border*2 + padding*2;
-    const h = padding*2 + images.length*(size+border*2) + (images.length-1)*gap;
-    const canvas = document.createElement('canvas');
-    canvas.width=w; canvas.height=h;
-    const ctx=canvas.getContext('2d');
-    ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h);
+    const size = 400, border = 1, padding = 20, gap = 10;
+    const W = size + border*2 + padding*2;
+    const H = padding*2 + images.length*(size+border*2) + (images.length-1)*gap;
 
-    for (let i=0;i<images.length;i++){
-      const imgEl=new Image();
-      await new Promise(r=>{imgEl.onload=r; imgEl.src=images[i];});
-      const x=padding+border;
-      const y=padding + i*((size+border*2)+gap) + border;
-      ctx.strokeStyle='#000'; ctx.lineWidth=border;
-      ctx.strokeRect(x-border,y-border,size+border*2,size+border*2);
-      ctx.drawImage(imgEl,x,y,size,size);
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
+
+    for (let i = 0; i < images.length; i++) {
+      const imgEl = new Image();
+      await new Promise(r => { imgEl.onload = r; imgEl.src = images[i]; });
+      const x = padding + border;
+      const y = padding + i*((size+border*2)+gap) + border;
+      ctx.strokeStyle = '#000'; ctx.lineWidth = border;
+      ctx.strokeRect(x-border, y-border, size+border*2, size+border*2);
+      ctx.drawImage(imgEl, x, y, size, size);
     }
 
-    canvas.toBlob(blob=>{
-      const link=document.createElement('a');
-      link.href=URL.createObjectURL(blob);
-      link.download='photostrip.png';
+    canvas.toBlob(blob => {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'photostrip.png';
       link.click();
-    },'image/png');
+    }, 'image/png');
   };
 
   return (
     <div className="container">
-      <Panel
-        number={1}
-        title="Configuration"
+      {/* Panel 1: Configuration */}
+      <Collapsible
+        id={1}
+        title="1. Configuration"
         isOpen={openPanel===1}
-        onToggle={handleToggle}
+        onToggle={setOpenPanel}
+        disabled={false}
       >
         <label>
           Number of Photos (1–4):
           <input
             type="number" min={1} max={MAX_PHOTOS}
             value={config.count}
-            onChange={e=>setConfig({...config,count:+e.target.value})}
+            onChange={e=>setConfig({...config, count:+e.target.value})}
           />
         </label>
-
         <label>
           Mode:
           <select
             value={config.mode}
-            onChange={e=>setConfig({...config,mode:e.target.value})}
+            onChange={e=>setConfig({...config, mode:e.target.value})}
           >
             <option value="upload">Upload</option>
             <option value="camera">Camera</option>
           </select>
         </label>
-
         <label>
           Theme:
           <select
             value={config.theme}
-            onChange={e=>setConfig({...config,theme:e.target.value})}
+            onChange={e=>setConfig({...config, theme:e.target.value})}
           >
-            {THEMES.map(t=>(
-              <option key={t} value={t}>{t}</option>
-            ))}
+            {THEMES.map(t=> <option key={t} value={t}>{t}</option>)}
           </select>
         </label>
-
         <button onClick={handleConfigSubmit}>Proceed</button>
-      </Panel>
+      </Collapsible>
 
-      <Panel
-        number={2}
-        title="Photo Capture"
+      {/* Panel 2: Photo Capture */}
+      <Collapsible
+        id={2}
+        title="2. Photo Capture"
         isOpen={openPanel===2}
-        onToggle={handleToggle}
+        onToggle={setOpenPanel}
         disabled={!configDone}
       >
         {config.mode === 'camera' ? (
@@ -202,7 +199,7 @@ export default function App() {
               audio={false}
               ref={webcamRef}
               screenshotFormat="image/jpeg"
-              videoConstraints={{facingMode:'user'}}
+              videoConstraints={{ facingMode:'user' }}
             />
             <button onClick={capturePhoto}>Capture</button>
           </>
@@ -215,17 +212,18 @@ export default function App() {
           />
         )}
         <p>Captured: {images.length} / {config.count}</p>
-      </Panel>
+      </Collapsible>
 
-      <Panel
-        number={3}
-        title="Photostrip"
+      {/* Panel 3: Photostrip */}
+      <Collapsible
+        id={3}
+        title="3. Photostrip"
         isOpen={openPanel===3}
-        onToggle={handleToggle}
+        onToggle={setOpenPanel}
         disabled={images.length < 1}
       >
         <div className="preview">
-          {images.map((src,i)=>(
+          {images.map((src,i) => (
             <div key={i} className="thumb-wrapper">
               <img src={src} alt="" />
               <button onClick={()=>setEditingIndex(i)}>Crop</button>
@@ -233,7 +231,7 @@ export default function App() {
           ))}
         </div>
         <button onClick={generatePNG}>Download Strip</button>
-      </Panel>
+      </Collapsible>
 
       {error && <div className="error-banner">{error}</div>}
 
