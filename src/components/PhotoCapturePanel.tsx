@@ -1,9 +1,11 @@
+
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { PhotoboothConfig, CapturedPhoto } from './PhotoboothApp';
 import { Camera, Upload, Trash2, ArrowLeft } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import CameraPopup from './CameraPopup';
 
 interface PhotoCapturePanelProps {
   isActive: boolean;
@@ -15,10 +17,8 @@ interface PhotoCapturePanelProps {
 
 const PhotoCapturePanel = ({ isActive, config, onNext, onBack, onReopen }: PhotoCapturePanelProps) => {
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
-  const [isCapturing, setIsCapturing] = useState(false);
+  const [showCameraPopup, setShowCameraPopup] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -49,46 +49,8 @@ const PhotoCapturePanel = ({ isActive, config, onNext, onBack, onReopen }: Photo
     });
   };
 
-  const startCamera = async () => {
-    try {
-      setIsCapturing(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch (error) {
-      toast({
-        title: "Camera access denied",
-        description: "Please allow camera access to take photos.",
-        variant: "destructive"
-      });
-      setIsCapturing(false);
-    }
-  };
-
-  const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return;
-
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    const context = canvas.getContext('2d');
-
-    if (context) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0);
-      
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const newPhoto: CapturedPhoto = {
-            id: Date.now().toString(),
-            url: canvas.toDataURL(),
-            blob: blob
-          };
-          setPhotos(prev => [...prev, newPhoto]);
-        }
-      });
-    }
+  const handleCameraCapture = (photo: CapturedPhoto) => {
+    setPhotos(prev => [...prev, photo]);
   };
 
   const removePhoto = (id: string) => {
@@ -107,6 +69,11 @@ const PhotoCapturePanel = ({ isActive, config, onNext, onBack, onReopen }: Photo
     }
   };
 
+  const getPhotoGridCols = () => {
+    if (config.photoCount === 6) return 'grid-cols-3';
+    return 'grid-cols-4';
+  };
+
   if (!isActive) {
     return (
       <div 
@@ -120,115 +87,111 @@ const PhotoCapturePanel = ({ isActive, config, onNext, onBack, onReopen }: Photo
   }
 
   return (
-    <div className="h-full p-8 overflow-y-auto">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center gap-4 mb-8">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg">
-            <span className="text-white font-semibold">2</span>
-          </div>
-          <div>
-            <h2 className="text-2xl font-semibold text-slate-800">Capture Photos</h2>
-            <p className="text-slate-600">
-              {config.mode === 'camera' ? 'Take' : 'Upload'} {config.photoCount} photos ({photos.length}/{config.photoCount})
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          {config.mode === 'upload' ? (
-            <div className="space-y-6">
-              <Label className="font-medium text-slate-700">Upload Photos</Label>
-              <div 
-                className="border-2 border-dashed border-slate-300 rounded-2xl p-12 text-center hover:border-slate-400 hover:bg-slate-50/50 transition-all duration-200 cursor-pointer"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="w-12 h-12 text-slate-500 mx-auto mb-4" />
-                <p className="text-lg font-medium mb-2 text-slate-700">Click to upload photos</p>
-                <p className="text-slate-600">Select up to {config.photoCount} images</p>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleFileUpload}
-                className="hidden"
-              />
+    <>
+      <div className="h-full p-6 overflow-y-auto">
+        <div className="max-w-2xl mx-auto">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg">
+              <span className="text-white font-semibold">2</span>
             </div>
-          ) : (
-            <div className="space-y-6">
-              <Label className="font-medium text-slate-700">Camera</Label>
-              {!isCapturing ? (
-                <div className="text-center space-y-6">
-                  <Button onClick={startCamera} size="lg" className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium py-4 shadow-lg hover:shadow-xl transition-all duration-200">
-                    <Camera className="w-5 h-5 mr-3" />
-                    Start Camera
-                  </Button>
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-800">Capture Photos</h2>
+              <p className="text-slate-600">
+                {config.mode === 'camera' ? 'Take' : 'Upload'} {config.photoCount} photos ({photos.length}/{config.photoCount})
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {config.mode === 'upload' ? (
+              <div className="space-y-4">
+                <Label className="font-medium text-slate-700">Upload Photos</Label>
+                <div 
+                  className="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center hover:border-slate-400 hover:bg-slate-50/50 transition-all duration-200 cursor-pointer"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="w-10 h-10 text-slate-500 mx-auto mb-3" />
+                  <p className="text-lg font-medium mb-2 text-slate-700">Click to upload photos</p>
+                  <p className="text-slate-600">Select up to {config.photoCount} images</p>
                 </div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="relative rounded-xl overflow-hidden shadow-lg border border-slate-200 bg-black max-h-64">
-                    <video ref={videoRef} autoPlay className="w-full h-full object-cover" />
-                    <canvas ref={canvasRef} className="hidden" />
-                  </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <Label className="font-medium text-slate-700">Camera</Label>
+                <div className="text-center">
                   <Button 
-                    onClick={capturePhoto} 
+                    onClick={() => setShowCameraPopup(true)} 
                     size="lg" 
                     className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium py-4 shadow-lg hover:shadow-xl transition-all duration-200"
                     disabled={photos.length >= config.photoCount}
                   >
                     <Camera className="w-5 h-5 mr-3" />
-                    Capture Photo ({photos.length}/{config.photoCount})
+                    {photos.length === 0 ? 'Start Camera' : `Take Photo (${photos.length}/${config.photoCount})`}
                   </Button>
                 </div>
-              )}
-            </div>
-          )}
-
-          {photos.length > 0 && (
-            <div className="space-y-6">
-              <Label className="font-medium text-slate-700">Captured Photos</Label>
-              <div className="grid grid-cols-4 gap-3">
-                {photos.map((photo, index) => (
-                  <div key={photo.id} className="relative group">
-                    <img 
-                      src={photo.url} 
-                      alt={`Captured ${index + 1}`}
-                      className="w-full h-20 object-cover rounded-lg border border-slate-200 shadow-sm"
-                    />
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg w-6 h-6 p-0"
-                      onClick={() => removePhoto(photo.id)}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                    <div className="absolute bottom-1 left-1 bg-white/90 text-slate-700 px-1.5 py-0.5 rounded text-xs font-medium">
-                      #{index + 1}
-                    </div>
-                  </div>
-                ))}
               </div>
-            </div>
-          )}
+            )}
 
-          <div className="flex gap-4 pt-4">
-            <Button variant="outline" onClick={onBack} className="flex-1 border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-4">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-            <Button 
-              onClick={handleNext} 
-              className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium py-4 shadow-lg hover:shadow-xl transition-all duration-200"
-              disabled={photos.length !== config.photoCount}
-            >
-              Create Strip
-            </Button>
+            {photos.length > 0 && (
+              <div className="space-y-4">
+                <Label className="font-medium text-slate-700">Captured Photos</Label>
+                <div className={`grid ${getPhotoGridCols()} gap-3`}>
+                  {photos.map((photo, index) => (
+                    <div key={photo.id} className="relative group">
+                      <img 
+                        src={photo.url} 
+                        alt={`Captured ${index + 1}`}
+                        className="w-full h-20 object-cover rounded-lg border border-slate-200 shadow-sm"
+                      />
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg w-6 h-6 p-0"
+                        onClick={() => removePhoto(photo.id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                      <div className="absolute bottom-1 left-1 bg-white/90 text-slate-700 px-1.5 py-0.5 rounded text-xs font-medium">
+                        #{index + 1}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-4 pt-4">
+              <Button variant="outline" onClick={onBack} className="flex-1 border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-4">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              <Button 
+                onClick={handleNext} 
+                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium py-4 shadow-lg hover:shadow-xl transition-all duration-200"
+                disabled={photos.length !== config.photoCount}
+              >
+                Create Strip
+              </Button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      <CameraPopup
+        isOpen={showCameraPopup}
+        onClose={() => setShowCameraPopup(false)}
+        onCapture={handleCameraCapture}
+        remainingPhotos={config.photoCount - photos.length}
+      />
+    </>
   );
 };
 

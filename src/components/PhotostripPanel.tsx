@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { PhotoboothConfig, CapturedPhoto } from './PhotoboothApp';
-import { Download, ArrowLeft, RotateCcw } from 'lucide-react';
+import { Download, ArrowLeft, RotateCcw, FileText } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface PhotostripPanelProps {
@@ -16,7 +16,7 @@ interface PhotostripPanelProps {
 const PhotostripPanel = ({ isActive, config, photos, onStartOver, onBack, onReopen }: PhotostripPanelProps) => {
   const stripRef = useRef<HTMLDivElement>(null);
 
-  const downloadStrip = async () => {
+  const downloadStrip = async (format: 'png' | 'pdf') => {
     if (!stripRef.current) return;
 
     try {
@@ -30,8 +30,15 @@ const PhotostripPanel = ({ isActive, config, photos, onStartOver, onBack, onReop
       const photoHeight = 300;
       const spacing = 20;
       const headerHeight = 80;
-      canvas.width = stripWidth;
-      canvas.height = headerHeight + (photoHeight + spacing) * config.photoCount + spacing;
+      
+      // For 6 photos, arrange in 2 columns
+      if (config.photoCount === 6) {
+        canvas.width = stripWidth * 2 + spacing;
+        canvas.height = headerHeight + (photoHeight + spacing) * 3 + spacing;
+      } else {
+        canvas.width = stripWidth;
+        canvas.height = headerHeight + (photoHeight + spacing) * config.photoCount + spacing;
+      }
 
       // Set background based on theme
       if (config.theme === 'retro') {
@@ -48,10 +55,10 @@ const PhotostripPanel = ({ isActive, config, photos, onStartOver, onBack, onReop
       ctx.fillStyle = config.theme === 'retro' ? '#92400e' : '#000000';
       ctx.font = 'bold 24px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('PHOTOBOOTH', stripWidth / 2, 40);
+      ctx.fillText('FUNKY PHOTOBOOTH', canvas.width / 2, 40);
       
       ctx.font = '14px Arial';
-      ctx.fillText(new Date().toLocaleDateString(), stripWidth / 2, 65);
+      ctx.fillText(new Date().toLocaleDateString(), canvas.width / 2, 65);
 
       // Load and draw photos
       const loadImage = (src: string): Promise<HTMLImageElement> => {
@@ -66,39 +73,72 @@ const PhotostripPanel = ({ isActive, config, photos, onStartOver, onBack, onReop
       for (let i = 0; i < photos.length; i++) {
         try {
           const img = await loadImage(photos[i].url);
-          const y = headerHeight + spacing + (photoHeight + spacing) * i;
-          const photoWidth = stripWidth - spacing * 2;
+          
+          let x, y, photoWidth;
+          
+          if (config.photoCount === 6) {
+            // 2 columns, 3 rows layout
+            const col = i % 2;
+            const row = Math.floor(i / 2);
+            photoWidth = stripWidth - spacing * 2;
+            x = spacing + col * (stripWidth + spacing / 2);
+            y = headerHeight + spacing + row * (photoHeight + spacing);
+          } else {
+            // Single column layout
+            photoWidth = stripWidth - spacing * 2;
+            x = spacing;
+            y = headerHeight + spacing + (photoHeight + spacing) * i;
+          }
           
           // Draw photo with border
           if (config.theme === 'retro') {
             ctx.fillStyle = '#92400e';
-            ctx.fillRect(spacing - 5, y - 5, photoWidth + 10, photoHeight + 10);
+            ctx.fillRect(x - 5, y - 5, photoWidth + 10, photoHeight + 10);
           }
           
-          ctx.drawImage(img, spacing, y, photoWidth, photoHeight);
+          ctx.drawImage(img, x, y, photoWidth, photoHeight);
         } catch (error) {
           console.error('Error loading image:', error);
         }
       }
 
-      // Convert canvas to blob and download
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `photostrip-${config.theme}-${Date.now()}.png`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          
-          toast({
-            title: "Download started!",
-            description: "Your photostrip is being downloaded.",
-          });
-        }
-      }, 'image/png');
+      if (format === 'png') {
+        // Convert canvas to blob and download as PNG
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `funky-photostrip-${config.theme}-${Date.now()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            toast({
+              title: "PNG Download started!",
+              description: "Your photostrip is being downloaded as PNG.",
+            });
+          }
+        }, 'image/png');
+      } else {
+        // Create PDF version
+        const { jsPDF } = await import('jspdf');
+        const pdf = new jsPDF({
+          orientation: config.photoCount === 6 ? 'landscape' : 'portrait',
+          unit: 'px',
+          format: [canvas.width, canvas.height]
+        });
+        
+        const imgData = canvas.toDataURL('image/png');
+        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+        pdf.save(`funky-photostrip-${config.theme}-${Date.now()}.pdf`);
+        
+        toast({
+          title: "PDF Download started!",
+          description: "Your photostrip is being downloaded as PDF.",
+        });
+      }
     } catch (error) {
       toast({
         title: "Download failed",
@@ -106,6 +146,13 @@ const PhotostripPanel = ({ isActive, config, photos, onStartOver, onBack, onReop
         variant: "destructive"
       });
     }
+  };
+
+  const getPhotostripLayout = () => {
+    if (config.photoCount === 6) {
+      return 'grid-cols-2 gap-3';
+    }
+    return 'grid-cols-1 gap-4';
   };
 
   if (!isActive) {
@@ -121,9 +168,9 @@ const PhotostripPanel = ({ isActive, config, photos, onStartOver, onBack, onReop
   }
 
   return (
-    <div className="h-full p-8 overflow-y-auto">
-      <div className="max-w-lg mx-auto">
-        <div className="flex items-center gap-4 mb-10">
+    <div className="h-full p-6 overflow-y-auto">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center gap-4 mb-8">
           <div className="w-12 h-12 rounded-full bg-gradient-to-r from-slate-600 to-slate-800 flex items-center justify-center shadow-lg">
             <span className="text-white font-semibold">3</span>
           </div>
@@ -133,63 +180,73 @@ const PhotostripPanel = ({ isActive, config, photos, onStartOver, onBack, onReop
           </div>
         </div>
 
-        <div className="space-y-10">
+        {/* Responsive Layout */}
+        <div className="lg:flex lg:gap-8 lg:items-start space-y-8 lg:space-y-0">
           {/* Photostrip Preview */}
-          <div className="flex justify-center">
+          <div className="lg:flex-1 flex justify-center">
             <div 
               ref={stripRef}
-              className={`w-80 rounded-2xl shadow-xl overflow-hidden border ${
+              className={`w-72 rounded-2xl shadow-xl overflow-hidden border ${
                 config.theme === 'retro' 
                   ? 'bg-gradient-to-b from-amber-50 to-orange-100 border-amber-200' 
                   : 'bg-white border-slate-200'
               }`}
             >
               {/* Header */}
-              <div className={`text-center py-8 ${
+              <div className={`text-center py-6 ${
                 config.theme === 'retro' ? 'text-amber-800' : 'text-slate-800'
               }`}>
-                <h3 className="text-xl font-semibold">PHOTOBOOTH</h3>
-                <p className="text-sm mt-2">{new Date().toLocaleDateString()}</p>
+                <h3 className="text-lg font-semibold">FUNKY PHOTOBOOTH</h3>
+                <p className="text-sm mt-1">{new Date().toLocaleDateString()}</p>
               </div>
               
               {/* Photos */}
-              <div className="px-8 pb-8 space-y-6">
-                {photos.map((photo, index) => (
-                  <div 
-                    key={photo.id} 
-                    className={`relative ${
-                      config.theme === 'retro' 
-                        ? 'border-2 border-amber-300 shadow-lg' 
-                        : 'border border-slate-300 shadow-md'
-                    } rounded-lg overflow-hidden`}
-                  >
-                    <img 
-                      src={photo.url} 
-                      alt={`Photo ${index + 1}`}
-                      className="w-full h-48 object-cover"
-                    />
-                    {config.theme === 'retro' && (
-                      <div className="absolute bottom-3 right-3 bg-amber-800 text-amber-100 px-3 py-1 rounded text-sm font-semibold">
-                        #{index + 1}
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div className="px-6 pb-6">
+                <div className={`grid ${getPhotostripLayout()}`}>
+                  {photos.map((photo, index) => (
+                    <div 
+                      key={photo.id} 
+                      className={`relative ${
+                        config.theme === 'retro' 
+                          ? 'border-2 border-amber-300 shadow-lg' 
+                          : 'border border-slate-300 shadow-md'
+                      } rounded-lg overflow-hidden`}
+                    >
+                      <img 
+                        src={photo.url} 
+                        alt={`Photo ${index + 1}`}
+                        className={`w-full object-cover ${config.photoCount === 6 ? 'h-32' : 'h-40'}`}
+                      />
+                      {config.theme === 'retro' && (
+                        <div className="absolute bottom-2 right-2 bg-amber-800 text-amber-100 px-2 py-1 rounded text-xs font-semibold">
+                          #{index + 1}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-4">
-            <Button variant="outline" onClick={onBack} className="flex-1 border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-4">
+          <div className="lg:w-64 space-y-4">
+            <Button onClick={() => downloadStrip('png')} className="w-full bg-gradient-to-r from-slate-600 to-slate-800 hover:from-slate-700 hover:to-slate-900 text-white font-medium py-4 shadow-lg hover:shadow-xl transition-all duration-200" size="lg">
+              <Download className="w-5 h-5 mr-3" />
+              Download (PNG)
+            </Button>
+            
+            <Button onClick={() => downloadStrip('pdf')} variant="outline" className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-4">
+              <FileText className="w-5 h-5 mr-3" />
+              Download (PDF)
+            </Button>
+            
+            <Button variant="outline" onClick={onBack} className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-4">
               <ArrowLeft className="w-5 h-5 mr-3" />
               Back
             </Button>
-            <Button onClick={downloadStrip} className="flex-1 bg-gradient-to-r from-slate-600 to-slate-800 hover:from-slate-700 hover:to-slate-900 text-white font-medium py-4 shadow-lg hover:shadow-xl transition-all duration-200" size="lg">
-              <Download className="w-5 h-5 mr-3" />
-              Download
-            </Button>
-            <Button variant="outline" onClick={onStartOver} className="flex-1 border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-4">
+            
+            <Button variant="outline" onClick={onStartOver} className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-4">
               <RotateCcw className="w-5 h-5 mr-3" />
               Start Over
             </Button>
