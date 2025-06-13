@@ -1,3 +1,4 @@
+
 import React, { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { PhotoboothConfig, CapturedPhoto } from './PhotoboothApp';
@@ -170,86 +171,83 @@ const PhotostripPanel = ({ isActive, config, photos, onStartOver, onBack, onReop
   return (
     <div className="h-full p-6 overflow-y-auto">
       <div className="max-w-6xl mx-auto">
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex items-center justify-center gap-4 mb-8">
           <div className="w-12 h-12 rounded-full bg-gradient-to-r from-slate-600 to-slate-800 flex items-center justify-center shadow-lg">
             <span className="text-white font-semibold">3</span>
           </div>
-          <div>
+          <div className="text-center">
             <h2 className="text-2xl font-semibold text-slate-800">Your Photostrip</h2>
             <p className="text-slate-600">Preview and download your creation</p>
           </div>
         </div>
 
-        {/* Responsive Layout */}
-        <div className="lg:flex lg:gap-8 lg:items-start space-y-8 lg:space-y-0">
-          {/* Photostrip Preview */}
-          <div className="lg:flex-1 flex justify-center">
-            <div 
-              ref={stripRef}
-              className={`w-72 rounded-2xl shadow-xl overflow-hidden border ${
-                config.theme === 'retro' 
-                  ? 'bg-gradient-to-b from-amber-50 to-orange-100 border-amber-200' 
-                  : 'bg-white border-slate-200'
-              }`}
-            >
-              {/* Header */}
-              <div className={`text-center py-6 ${
-                config.theme === 'retro' ? 'text-amber-800' : 'text-slate-800'
-              }`}>
-                <h3 className="text-lg font-semibold">FUNKY PHOTOBOOTH</h3>
-                <p className="text-sm mt-1">{new Date().toLocaleDateString()}</p>
-              </div>
-              
-              {/* Photos */}
-              <div className="px-6 pb-6">
-                <div className={`grid ${getPhotostripLayout()}`}>
-                  {photos.map((photo, index) => (
-                    <div 
-                      key={photo.id} 
-                      className={`relative ${
-                        config.theme === 'retro' 
-                          ? 'border-2 border-amber-300 shadow-lg' 
-                          : 'border border-slate-300 shadow-md'
-                      } rounded-lg overflow-hidden`}
-                    >
-                      <img 
-                        src={photo.url} 
-                        alt={`Photo ${index + 1}`}
-                        className={`w-full object-cover ${config.photoCount === 6 ? 'h-32' : 'h-40'}`}
-                      />
-                      {config.theme === 'retro' && (
-                        <div className="absolute bottom-2 right-2 bg-amber-800 text-amber-100 px-2 py-1 rounded text-xs font-semibold">
-                          #{index + 1}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+        {/* Centered Layout */}
+        <div className="flex justify-center">
+          <div className="lg:flex lg:gap-8 lg:items-start space-y-8 lg:space-y-0">
+            {/* Photostrip Preview - Smaller size */}
+            <div className="flex justify-center">
+              <div 
+                ref={stripRef}
+                className={`w-48 rounded-xl shadow-lg overflow-hidden border ${
+                  config.theme === 'retro' 
+                    ? 'bg-gradient-to-b from-amber-50 to-orange-100 border-amber-200' 
+                    : 'bg-white border-slate-200'
+                }`}
+              >
+                {/* Header */}
+                <div className={`text-center py-3 ${
+                  config.theme === 'retro' ? 'text-amber-800' : 'text-slate-800'
+                }`}>
+                  <h3 className="text-xs font-semibold">FUNKY PHOTOBOOTH</h3>
+                  <p className="text-xs mt-1">{new Date().toLocaleDateString()}</p>
+                </div>
+                
+                {/* Photos */}
+                <div className="px-3 pb-3">
+                  <div className={`grid ${getPhotostripLayout()}`}>
+                    {photos.map((photo, index) => (
+                      <div 
+                        key={photo.id} 
+                        className={`relative ${
+                          config.theme === 'retro' 
+                            ? 'border border-amber-300 shadow-sm' 
+                            : 'border border-slate-300 shadow-sm'
+                        } rounded overflow-hidden`}
+                      >
+                        <img 
+                          src={photo.url} 
+                          alt={`Photo ${index + 1}`}
+                          className={`w-full object-cover ${config.photoCount === 6 ? 'h-16' : 'h-20'}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Action Buttons */}
-          <div className="lg:w-64 space-y-4">
-            <Button onClick={() => downloadStrip('png')} className="w-full bg-gradient-to-r from-slate-600 to-slate-800 hover:from-slate-700 hover:to-slate-900 text-white font-medium py-4 shadow-lg hover:shadow-xl transition-all duration-200" size="lg">
-              <Download className="w-5 h-5 mr-3" />
-              Download (PNG)
-            </Button>
-            
-            <Button onClick={() => downloadStrip('pdf')} variant="outline" className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-4">
-              <FileText className="w-5 h-5 mr-3" />
-              Download (PDF)
-            </Button>
-            
-            <Button variant="outline" onClick={onBack} className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-4">
-              <ArrowLeft className="w-5 h-5 mr-3" />
-              Back
-            </Button>
-            
-            <Button variant="outline" onClick={onStartOver} className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-4">
-              <RotateCcw className="w-5 h-5 mr-3" />
-              Start Over
-            </Button>
+            {/* Action Buttons */}
+            <div className="lg:w-56 space-y-3">
+              <Button onClick={() => downloadStrip('png')} className="w-full bg-gradient-to-r from-slate-600 to-slate-800 hover:from-slate-700 hover:to-slate-900 text-white font-medium py-3 shadow-lg hover:shadow-xl transition-all duration-200" size="default">
+                <Download className="w-4 h-4 mr-2" />
+                Download (PNG)
+              </Button>
+              
+              <Button onClick={() => downloadStrip('pdf')} variant="outline" className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-3">
+                <FileText className="w-4 h-4 mr-2" />
+                Download (PDF)
+              </Button>
+              
+              <Button variant="outline" onClick={onBack} className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-3">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              
+              <Button variant="outline" onClick={onStartOver} className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-3">
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Start Over
+              </Button>
+            </div>
           </div>
         </div>
       </div>

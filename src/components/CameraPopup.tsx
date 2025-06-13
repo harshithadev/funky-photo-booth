@@ -76,14 +76,10 @@ const CameraPopup = ({ isOpen, onClose, onCapture, remainingPhotos }: CameraPopu
 
   if (!isOpen) return null;
 
-  const totalPhotos = remainingPhotos === 3 ? 3 : remainingPhotos === 2 ? 4 : remainingPhotos === 0 ? 6 : 6;
-  const currentPhoto = totalPhotos - remainingPhotos + 1;
-
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-hidden">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-semibold text-slate-800">Take Photo</h3>
+        <div className="flex justify-end items-center mb-4">
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="w-5 h-5" />
           </Button>
@@ -97,11 +93,6 @@ const CameraPopup = ({ isOpen, onClose, onCapture, remainingPhotos }: CameraPopu
               className="w-full h-auto max-h-96 object-contain" 
             />
             <canvas ref={canvasRef} className="hidden" />
-            
-            {/* Floating counter in bottom right */}
-            <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-2 rounded-lg font-medium text-lg">
-              {currentPhoto}/{totalPhotos}
-            </div>
           </div>
           
           <Button 

@@ -70,7 +70,7 @@ const PhotoboothApp = () => {
               isActive={activePanel === 'config'}
               config={config}
               onNext={handleConfigNext}
-              onReopen={() => setActivePanel('config')}
+              onReopen={activePanel !== 'config' ? () => {} : undefined}
             />
           </div>
 
@@ -85,7 +85,7 @@ const PhotoboothApp = () => {
               config={config}
               onNext={handlePhotosNext}
               onBack={() => setActivePanel('config')}
-              onReopen={() => setActivePanel('capture')}
+              onReopen={activePanel !== 'capture' ? () => {} : undefined}
             />
           </div>
 
@@ -101,7 +101,7 @@ const PhotoboothApp = () => {
               photos={photos}
               onStartOver={handleStartOver}
               onBack={() => setActivePanel('capture')}
-              onReopen={() => setActivePanel('strip')}
+              onReopen={activePanel !== 'strip' ? () => {} : undefined}
             />
           </div>
         </div>
